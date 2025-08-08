@@ -1,0 +1,51 @@
+from django.contrib.auth.models import (
+    AbstractBaseUser,
+    PermissionsMixin,
+)
+from django.db import models
+from accounts.custom_managers import CustomUserManager
+from django.utils import timezone
+from datetime import timedelta
+
+
+class User(AbstractBaseUser, PermissionsMixin):
+    ROLE_CHOICES = [
+        ("SUPER_ADMIN", "Super Admin"),
+        ("MANAGER", "Manager"),
+        ("CREATOR", "Creator"),
+    ]
+
+    username = models.CharField(max_length=250, unique=True)
+    uid = models.CharField(max_length=100, db_index=True, null=True, blank=True)
+    email = models.EmailField(unique=True, null=True, blank=True)
+    name = models.CharField(max_length=255, null=True, blank=True)
+
+    profile_image = models.ImageField(upload_to="profiles/", null=True, blank=True)
+
+    email_verified = models.BooleanField(default=False)
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    is_active = models.BooleanField(default=True)
+    is_staff = models.BooleanField(default=False)
+
+    objects = CustomUserManager()
+
+    USERNAME_FIELD = "username"
+    REQUIRED_FIELDS = []
+
+    def __str__(self):
+        return self.username
+
+
+class OTP(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    code = models.CharField(max_length=6)
+    purpose = models.CharField(max_length=30)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def is_expired(self):
+        return timezone.now() > self.created_at + timedelta(minutes=5)
