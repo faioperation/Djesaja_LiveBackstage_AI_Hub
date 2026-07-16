@@ -1,0 +1,51 @@
+version: '3.9'
+
+# ==============================================================================
+# docker-compose.prod.yml — Production Override
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Requirements: Set all variables in .env file before running
+# ==============================================================================
+
+services:
+  backend:
+    restart: always
+    environment:
+      DEBUG: "False"
+      DB_ENGINE: "django.db.backends.postgresql"
+      GUNICORN_WORKERS: "5"
+      GUNICORN_TIMEOUT: "120"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    # No code volume mounts in production
+    volumes:
+      - media_data:/app/media
+      - static_data:/app/staticfiles
+
+  worker:
+    restart: always
+    environment:
+      DEBUG: "False"
+      DB_ENGINE: "django.db.backends.postgresql"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    volumes:
+      - media_data:/app/media
+
+  db:
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  postgres_data:
+  media_data:
+  static_data:

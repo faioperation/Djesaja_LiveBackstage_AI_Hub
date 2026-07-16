@@ -1,0 +1,104 @@
+version: '3.9'
+
+# ==============================================================================
+# Djesaja LiveBackstage AI Hub — Base Docker Compose
+# Used as the shared base; override with docker-compose.dev.yml or .prod.yml
+# ==============================================================================
+
+services:
+  # ============================================================
+  # Django Backend + Playwright Scraper API
+  # ============================================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: livebackstage-backend
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8000}:8000"
+    volumes:
+      - media_data:/app/media
+      - static_data:/app/staticfiles
+      - sqlite_data:/app/db_data
+    env_file:
+      - .env
+    environment:
+      # Override DB path for SQLite to point to the persistent volume
+      # When using PostgreSQL, these are ignored
+      PYTHONUNBUFFERED: "1"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/swagger/?format=openapi"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - livebackstage-net
+
+  # ============================================================
+  # Cron Worker — runs Playwright scraper + AI jobs on schedule
+  # Same image as backend; different command
+  # ============================================================
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: livebackstage-worker
+    restart: unless-stopped
+    volumes:
+      - media_data:/app/media
+      - sqlite_data:/app/db_data
+    env_file:
+      - .env
+    depends_on:
+      - backend
+    # Override entrypoint: start a cron-like loop running the jobs
+    entrypoint: ["sh", "-c", "
+      echo 'Worker started. Running jobs every hour at :10...';
+      while true; do
+        NOW=$(date +%M);
+        if [ \"$$NOW\" = '10' ]; then
+          echo '[WORKER] Running scrape + AI job...';
+          python jobs/run_scrape_and_daily.py;
+          sleep 60;
+        fi;
+        sleep 30;
+      done
+    "]
+    networks:
+      - livebackstage-net
+
+  # ============================================================
+  # PostgreSQL Database (production-grade; optional for dev)
+  # ============================================================
+  db:
+    image: postgres:16-alpine
+    container_name: livebackstage-db
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      POSTGRES_DB: ${DB_NAME:-livebackstage_db}
+      POSTGRES_USER: ${DB_USER:-livebackstage_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-change_me_in_production}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-livebackstage_user} -d ${DB_NAME:-livebackstage_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - livebackstage-net
+
+volumes:
+  postgres_data:
+  sqlite_data:
+  media_data:
+  static_data:
+
+networks:
+  livebackstage-net:
+    driver: bridge

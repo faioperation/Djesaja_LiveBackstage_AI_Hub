@@ -1,0 +1,46 @@
+version: '3.9'
+
+# ==============================================================================
+# docker-compose.dev.yml — Development Override
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+# ==============================================================================
+
+services:
+  backend:
+    volumes:
+      # Mount source code for hot-reload
+      - ./backend:/app
+      - media_data:/app/media
+      - sqlite_data:/app/db_data
+    environment:
+      DEBUG: "True"
+      SECRET_KEY: "django-insecure-dev-key-do-not-use-in-production-1234567890"
+      ALLOWED_HOSTS: "localhost,127.0.0.1"
+      DB_ENGINE: "django.db.backends.sqlite3"
+      EMAIL_BACKEND: "django.core.mail.backends.console.EmailBackend"
+      EMAIL_HOST: ""
+      EMAIL_PORT: "1025"
+      EMAIL_USE_TLS: "False"
+      EMAIL_HOST_USER: ""
+      EMAIL_HOST_PASSWORD: ""
+      CORS_ALLOW_ALL_ORIGINS: "True"
+      AI_SERVICE_BASE_URL: "http://172.252.13.97:8026"
+    # Override entrypoint to run Django dev server (hot-reload)
+    entrypoint: []
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py runserver 0.0.0.0:8000"
+
+  worker:
+    # Disable worker in development
+    profiles:
+      - worker
+
+  db:
+    # Optional: use SQLite in dev by default, so DB container can be disabled
+    profiles:
+      - postgres
+
+volumes:
+  sqlite_data:
+  media_data:

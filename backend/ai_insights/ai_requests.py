@@ -2,6 +2,7 @@ import json
 import requests
 from collections import defaultdict
 from django.utils import timezone
+from django.conf import settings
 from datetime import timedelta
 from managers.models import Manager
 from creators.models import Creator
@@ -87,10 +88,14 @@ def group_creators_by_manager(creators):
 
 # ----------------- Step 3: AI Request -----------------
 
-AI_ENDPOINTS = {
-    "daily": "http://172.252.13.97:8026/v1/daily/run",
-    "month_start": "http://172.252.13.97:8026/v1/month-start/run",
-}
+def _get_ai_endpoints():
+    base_url = getattr(settings, "AI_SERVICE_BASE_URL", "http://172.252.13.97:8026")
+    return {
+        "daily": f"{base_url}/v1/daily/run",
+        "month_start": f"{base_url}/v1/month-start/run",
+    }
+
+AI_ENDPOINTS = _get_ai_endpoints()
 
 
 def send_ai_request(payload: dict, mode: str):
